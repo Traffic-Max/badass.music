@@ -122,16 +122,16 @@ async def change_status_to_published(track_name: str):
 
 
 async def get_draft_track():
-    return await AudioTrack.query.where(AudioTrack.status == "draft").gino.first()
+    return await AudioTrack.query.where(AudioTrack.status == "draft").gino.all()
 
 
     
 async def main():
     await db.set_bind(database_url)
-    # db.drop_all()
-    # print("Tables dropped")
-    # db.create_all() # type: ignore
-    # print("Tables created")
+    db.drop_all()
+    print("Tables dropped")
+    db.create_all() # type: ignore
+    print("Tables created")
     
     
     
