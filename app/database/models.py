@@ -49,6 +49,8 @@ class AudioTrack(db.Model):
     release_year = Column(Integer, nullable=True)
     track_duration = Column(Integer, nullable=True)
     bitrate = Column(Integer, nullable=True)
+    ton_key = Column(Integer, nullable=True)
+    
     cover_art = Column(String, nullable=True)
     comments = Column(String, nullable=True)
     telegram_file_id = Column(String, nullable=True)
@@ -90,6 +92,7 @@ async def add_track_to_db(
     release_year: Optional[int] = None,
     track_duration: Optional[int] = None,
     bitrate: Optional[int] = None,
+    ton_key: Optional[str] = None,
     cover_art: Optional[str] = None,
     comments: Optional[str]= None,
     telegram_file_id: Optional[str] = None,
@@ -108,33 +111,21 @@ async def add_track_to_db(
         release_year=release_year,
         track_duration=track_duration,
         bitrate=bitrate,
+        ton_key=ton_key,
         cover_art=cover_art,
         comments=comments,
         telegram_file_id=telegram_file_id,
     )
 
 
-async def change_status_to_published(track_name: str):
-    track = await AudioTrack.query.where(AudioTrack.track_name == track_name).gino.first()
+async def change_status_to_published(id: int):
+    track = await AudioTrack.query.where(AudioTrack.id == id).gino.first()
     if track:
         await track.update(status="published").apply()
+        print("STATUS CHANGED TO PUBLISHED")
         return track.status
 
 
 async def get_draft_track():
     return await AudioTrack.query.where(AudioTrack.status == "draft").gino.first()
 
-
-    
-async def main():
-    await db.set_bind(database_url)
-    # db.drop_all()
-    # print("Tables dropped")
-    # db.create_all() # type: ignore
-    # print("Tables created")
-    
-    
-    
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
