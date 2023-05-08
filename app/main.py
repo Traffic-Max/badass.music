@@ -1,50 +1,69 @@
 import os
-import time
-import schedule
+import asyncio
+from typing import Dict
 
 from dotenv import load_dotenv
 
-from typing import Dict
-
 from fastapi import FastAPI, HTTPException
-from app.config import DATABASE_URL
-from app.database.utils import create_tables, get_db_session
+
+from aiogram import executor
+import logging
 from app.database.models import db, database_url, AudioTrack, add_track_to_db, change_status_to_published, get_draft_track
-import asyncio
-from app.database.db_init import init_db
 from app.api.routes import router as api_router
-
-from app.bot.bot import send_track
-
-
+from app.bot.bot import bot, dp, send_track
+from app.api.music_moderation import process_and_upload_track
+from app.database.utils import create_tables, drop_tables
+import pysnooper
 load_dotenv()
 
-TRACKS_FOLDER = os.getenv('TRACKS_FOLDER')
-database_url = str(os.environ.get('DATABASE_URL'))
 
 app = FastAPI()
 
 app.include_router(api_router)
 
+folder_path = os.environ.get('FOLDER_PATH')
+admin_id = os.environ.get("TELEGRAM_ADMIN_ID")
+BRANDING_DATA = {
+    "channel_name": "☠️ badass.music.channel🎧",
+    "channel_link": "https://t.me/badasschannel",
+    "admin_nickname": "@badass_marketing",
+    "branch": "hiphop",
+}
+
+
 @app.on_event("startup")
-async def startup():
+async def startup_event():
+    """On Startup"""
+    
+    # await drop_tables(database_url)
     # await create_tables(database_url)
-    # Загружаем треки из папки в базу данных при запуске приложения
+    
     await db.set_bind(database_url) 
-    await add_tracks_from_folder()
+
+    # Получение списка всех файлов с треками в заданной папке
+    # track_files = [
+    #     os.path.join(root, file)
+    #     for root, _, files in os.walk(folder_path)
+    #     for file in files
+    #     if file.lower().endswith(('.mp3', '.flac', '.m4a', '.ogg'))
+    # ]
+
+    # Обработка и загрузка каждого трека
+    # for file_path in track_files:
+        # await process_and_upload_track(bot, file_path, BRANDING_DATA)
+
+    await bot.send_message(chat_id=admin_id, text="Бот и приложение FastAPI запущены")
+
+    asyncio.create_task(publish_track_periodically())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """On Shutdown"""
     
-    asyncio.create_task(publish_track_periodically())  # Запускаем периодическую публикацию треков
+    await bot.send_message(chat_id=admin_id, text="Бот и приложение FastAPI остановлены")
+    await bot.close()
 
     
-async def add_tracks_from_folder():
-    for filename in os.listdir(TRACKS_FOLDER):
-        if filename.endswith(".mp3"):
-            track_path = os.path.join(TRACKS_FOLDER, filename) # type: ignore
-            # Здесь вы можете извлечь информацию из файла трека, например, с помощью библиотеки mutagen
-            # Используйте функцию add_track_to_db для добавления трека в базу данных
-            await add_track_to_db(track_name=filename, artist="Unknown", title="Unknown", genre="Unknown", channel_branch="badass.electronic.sound")
-
-
 @app.post("/tracks/")
 async def add_new_track(track_data: Dict):
     """Add track to db with post and JSON body
@@ -87,12 +106,33 @@ async def get_all_tracks():
     return tracks
 
 
-"""Scheduling with aioschedule"""
 async def publish_track_periodically():
+    """Scheduling with aioschedule"""
+    
     while True:
         track = await get_draft_track()
         if track:
-            await change_status_to_published(track.track_name)
-            print(f"Трек {track.track_name} опубликован.")
-        await asyncio.sleep(60)  # Частота публикации треков (в секундах)
+            print(f"Track to send is: {track.title}")
+            try:    
+                print(f"Channel ID: {os.getenv('CHANNEL_ELECTRO_ID')}")
 
+                await change_status_to_published(track.id)
+                await send_track(bot=bot, track=track, channel_branch=BRANDING_DATA['branch'])
+                print(f"Трек {track.track_name} опубликован.")
+            except Exception as e:
+                print(f"[!] Error while track publish: {e}")
+        await asyncio.sleep(180)  # Частота публикации треков (в секундах)
+
+
+if __name__ == "__main__":
+    import nest_asyncio
+    nest_asyncio.apply()
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(startup_event())
+
+    executor.start_polling(dp, loop=loop, on_startup=None, on_shutdown=shutdown_event)
+    
+    
+# /home/pax/music_dir/test
+# /home/pax/music_dir/test2
