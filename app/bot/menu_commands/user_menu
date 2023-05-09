@@ -1,0 +1,9 @@
+from aiogram import types, bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+
+async def user_menu(message: types.Message):
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(InlineKeyboardButton("My Likes", callback_data="my_likes"))
+
+    await message.reply("User Menu", reply_markup=keyboard)
